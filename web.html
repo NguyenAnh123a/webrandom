@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Thí Sinh</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.4/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+        }
+        button {
+            cursor: pointer;
+            background: #ff758c;
+            color: white;
+        }
+        button:hover {
+            background: #ff5a6e;
+        }
+        .candidate {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-top: 5px;
+            background: #fce3e9;
+            border-radius: 5px;
+        }
+        .buttons button {
+            margin-left: 5px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        .winner-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Random Thí Sinh</h1>
+        <input type="text" id="newName" placeholder="Nhập tên thí sinh">
+        <button onclick="addCandidate()">Thêm</button>
+        <input type="file" id="fileInput" accept=".xlsx" onchange="loadExcel(event)">
+        <div id="candidatesList"></div>
+        <button onclick="pickRandom()" style="margin-top: 10px;">Chọn Ngẫu Nhiên</button>
+    </div>
+
+    <div id="randomModal" class="modal">
+        <h3>🔄 Đang chọn thí sinh...</h3>
+        <h2 id="randomizingName"></h2>
+    </div>
+
+    <div id="winnerModal" class="winner-modal">
+        <h2 id="winnerName"></h2>
+        <button onclick="closeWinnerModal()">Đóng</button>
+    </div>
+
+    <script>
+        let candidates = [];
+
+        function addCandidate() {
+            const name = document.getElementById("newName").value.trim();
+            if (name === "") return;
+            candidates.push({ name, weight: 1 });
+            document.getElementById("newName").value = "";
+            renderCandidates();
+        }
+
+        function removeCandidate(index) {
+            candidates.splice(index, 1);
+            renderCandidates();
+        }
+
+        function adjustWeight(index, delta) {
+            candidates[index].weight = Math.max(1, candidates[index].weight + delta);
+            renderCandidates();
+        }
+
+        function renderCandidates() {
+            const list = document.getElementById("candidatesList");
+            list.innerHTML = "";
+            candidates.forEach((c, index) => {
+                list.innerHTML += `
+                    <div class="candidate">
+                        <span>${c.name} (Tỉ lệ: ${c.weight})</span>
+                        <div class="buttons">
+                            <button onclick="adjustWeight(${index}, 1)">➕</button>
+                            <button onclick="adjustWeight(${index}, -1)">➖</button>
+                            <button onclick="removeCandidate(${index})">❌</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function pickRandom() {
+            if (candidates.length === 0) return;
+            document.getElementById("randomModal").style.display = "block";
+            let count = 0;
+            let interval = setInterval(() => {
+                let randomIndex = Math.floor(Math.random() * candidates.length);
+                document.getElementById("randomizingName").innerText = candidates[randomIndex].name;
+                count++;
+                if (count > 10) {
+                    clearInterval(interval);
+                    document.getElementById("randomModal").style.display = "none";
+                    finalizePick();
+                }
+            }, 200);
+        }
+
+        function finalizePick() {
+            let totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+            let rand = Math.random() * totalWeight;
+            for (const c of candidates) {
+                if (rand < c.weight) {
+                    document.getElementById("winnerName").innerText = `🎉 ${c.name} được chọn!`;
+                    document.getElementById("winnerModal").style.display = "block";
+                    return;
+                }
+                rand -= c.weight;
+            }
+        }
+
+        function closeWinnerModal() {
+            document.getElementById("winnerModal").style.display = "none";
+        }
+
+        function loadExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                rows.forEach(row => {
+                    if (row[0]) {
+                        candidates.push({ name: row[0], weight: 1 });
+                    }
+                });
+                renderCandidates();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    </script>
+</body>
+</html>
