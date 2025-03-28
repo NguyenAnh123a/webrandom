@@ -32,21 +32,26 @@
             cursor: pointer;
             background: #ff758c;
             color: white;
+            transition: background 0.3s, transform 0.2s;
         }
         button:hover {
             background: #ff5a6e;
+            transform: scale(1.05);
         }
         .candidate {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             padding: 10px;
             border: 1px solid #ddd;
             margin-top: 5px;
             background: #fce3e9;
             border-radius: 5px;
+            animation: fadeIn 0.5s ease-in-out;
         }
-        .buttons button {
-            margin-left: 5px;
+        .candidate .buttons {
+            display: flex;
+            gap: 10px;
         }
         .modal {
             display: none;
@@ -59,16 +64,27 @@
             border-radius: 10px;
             box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
         }
-        .winner-modal {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        .modal.show {
+            display: block;
+            transform: translate(-50%, -50%) scale(1);
+            animation: shakeStrong 0.5s ease-in-out, highlightYellow 1s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes shakeStrong {
+            0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+            20% { transform: translate(-50%, -50%) translateX(-10px); }
+            40% { transform: translate(-50%, -50%) translateX(10px); }
+            60% { transform: translate(-50%, -50%) translateX(-10px); }
+            80% { transform: translate(-50%, -50%) translateX(10px); }
+        }
+        @keyframes highlightYellow {
+            0% { background: white; }
+            50% { background: yellow; }
+            100% { background: white; }
         }
     </style>
 </head>
@@ -79,21 +95,40 @@
         <button onclick="addCandidate()">Thêm</button>
         <input type="file" id="fileInput" accept=".xlsx" onchange="loadExcel(event)">
         <div id="candidatesList"></div>
-        <button onclick="pickRandom()" style="margin-top: 10px;">Chọn Ngẫu Nhiên</button>
+        <button onclick="pickRandom()" id="randomBtn" style="margin-top: 10px;">Chọn Ngẫu Nhiên</button>
     </div>
 
     <div id="randomModal" class="modal">
         <h3>🔄 Đang chọn thí sinh...</h3>
         <h2 id="randomizingName"></h2>
+        <button onclick="closeRandomModal()">Đóng</button>
     </div>
 
-    <div id="winnerModal" class="winner-modal">
+    <div id="winnerModal" class="modal">
         <h2 id="winnerName"></h2>
         <button onclick="closeWinnerModal()">Đóng</button>
     </div>
 
     <script>
         let candidates = [];
+
+        function renderCandidates() {
+            const list = document.getElementById("candidatesList");
+            list.innerHTML = "";
+            candidates.forEach((c, index) => {
+                const div = document.createElement("div");
+                div.className = "candidate";
+                div.innerHTML = `
+                    <span>${c.name} (Tỉ lệ: ${c.weight})</span>
+                    <div class="buttons">
+                        <button onclick="increaseWeight(${index})">➕</button>
+                        <button onclick="decreaseWeight(${index})">➖</button>
+                        <button onclick="removeCandidate(${index})">❌</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
 
         function addCandidate() {
             const name = document.getElementById("newName").value.trim();
@@ -103,73 +138,31 @@
             renderCandidates();
         }
 
+        function increaseWeight(index) {
+            candidates[index].weight++;
+            renderCandidates();
+        }
+
+        function decreaseWeight(index) {
+            if (candidates[index].weight > 1) {
+                candidates[index].weight--;
+                renderCandidates();
+            }
+        }
+
         function removeCandidate(index) {
             candidates.splice(index, 1);
             renderCandidates();
         }
 
-        function adjustWeight(index, delta) {
-            candidates[index].weight = Math.max(1, candidates[index].weight + delta);
-            renderCandidates();
-        }
-
-        function renderCandidates() {
-            const list = document.getElementById("candidatesList");
-            list.innerHTML = "";
-            candidates.forEach((c, index) => {
-                list.innerHTML += `
-                    <div class="candidate">
-                        <span>${c.name} (Tỉ lệ: ${c.weight})</span>
-                        <div class="buttons">
-                            <button onclick="adjustWeight(${index}, 1)">➕</button>
-                            <button onclick="adjustWeight(${index}, -1)">➖</button>
-                            <button onclick="removeCandidate(${index})">❌</button>
-                        </div>
-                    </div>`;
-            });
-        }
-
-        function pickRandom() {
-            if (candidates.length === 0) return;
-            document.getElementById("randomModal").style.display = "block";
-            let count = 0;
-            let interval = setInterval(() => {
-                let randomIndex = Math.floor(Math.random() * candidates.length);
-                document.getElementById("randomizingName").innerText = candidates[randomIndex].name;
-                count++;
-                if (count > 10) {
-                    clearInterval(interval);
-                    document.getElementById("randomModal").style.display = "none";
-                    finalizePick();
-                }
-            }, 200);
-        }
-
-        function finalizePick() {
-            let totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
-            let rand = Math.random() * totalWeight;
-            for (const c of candidates) {
-                if (rand < c.weight) {
-                    document.getElementById("winnerName").innerText = `🎉 ${c.name} được chọn!`;
-                    document.getElementById("winnerModal").style.display = "block";
-                    return;
-                }
-                rand -= c.weight;
-            }
-        }
-
-        function closeWinnerModal() {
-            document.getElementById("winnerModal").style.display = "none";
-        }
-
         function loadExcel(event) {
             const file = event.target.files[0];
-            if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: "array" });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
                 const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                 rows.forEach(row => {
                     if (row[0]) {
@@ -179,6 +172,33 @@
                 renderCandidates();
             };
             reader.readAsArrayBuffer(file);
+        }
+
+        function pickRandom() {
+            if (candidates.length === 0) return;
+            document.getElementById("randomModal").classList.add("show");
+            let count = 0;
+            let interval = setInterval(() => {
+                const randomIndex = Math.floor(Math.random() * candidates.length);
+                document.getElementById("randomizingName").innerText = candidates[randomIndex].name;
+                count++;
+                if (count > 10) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        document.getElementById("randomModal").classList.remove("show");
+                        document.getElementById("winnerName").innerText = `🎉 ${candidates[randomIndex].name} được chọn!`;
+                        document.getElementById("winnerModal").classList.add("show");
+                    }, 500);
+                }
+            }, 100);
+        }
+
+        function closeRandomModal() {
+            document.getElementById("randomModal").classList.remove("show");
+        }
+
+        function closeWinnerModal() {
+            document.getElementById("winnerModal").classList.remove("show");
         }
     </script>
 </body>
